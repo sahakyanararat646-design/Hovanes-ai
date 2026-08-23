@@ -62,8 +62,9 @@ system_instruction = """
 6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
+# Պաշտոնական ճիշտ մոդելի անունը
 model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash", system_instruction=system_instruction
+    model_name="models/gemini-1.5-flash", system_instruction=system_instruction
 )
 
 # --- SIDEBAR (ԿՈՂԱՅԻՆ ՄԵՆՅՈՒ) ---
