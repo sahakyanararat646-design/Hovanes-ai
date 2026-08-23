@@ -2,6 +2,9 @@ import sqlite3
 import google.generativeai as genai
 from PIL import Image
 import streamlit as st
+from audio_recorder_streamlit import audio_recorder
+from gtts import gTTS
+import os
 
 st.set_page_config(
     page_title="Հովհաննես AI", page_icon="🤖", layout="wide"
@@ -11,7 +14,6 @@ st.set_page_config(
 conn = sqlite3.connect("chats_database.db", check_same_thread=False)
 cursor = conn.cursor()
 
-# Ստեղծում ենք աղյուսակներ չատերի և հաղորդագրությունների համար
 cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS chats (
@@ -75,7 +77,6 @@ if st.sidebar.button("➕ Նոր չատ", use_container_width=True):
 
 st.sidebar.subheader("Վերջին չատերը")
 
-# Բեռնում ենք բոլոր չատերը
 cursor.execute("SELECT chat_id, title FROM chats ORDER BY chat_id DESC")
 all_chats = cursor.fetchall()
 
@@ -84,7 +85,6 @@ if "current_chat_id" not in st.session_state:
         all_chats[0][0] if all_chats else None
     )
 
-# Ցույց ենք տալիս չատերի ցուցակը
 for chat_id, title in all_chats:
     btn_label = f"💬 {title[:25]}..." if len(title) > 25 else f"💬 {title}"
     if st.sidebar.button(
@@ -96,6 +96,7 @@ for chat_id, title in all_chats:
 # --- MAIN CHAT WINDOW ---
 st.title("🤖 Հովհաննես AI")
 
+# Նկարի բեռնում
 uploaded_file = st.file_uploader(
     "Ուղարկիր նկար (ըստ ցանկության)...", type=["jpg", "jpeg", "png"]
 )
@@ -103,6 +104,10 @@ image = None
 if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Բեռնված նկարը", use_column_width=True)
+
+# Ձայնագրության կոճակ
+st.write("🎙️ **Խոսիր Հովհաննեսի հետ (սեղմիր mikrofon-ի վրա)**")
+audio_bytes = audio_recorder(text="", recording_color="#e84c3d", neutral_color="#6aa84f")
 
 # Ցույց տալ ընտրված չատի հաղորդագրությունները
 if st.session_state.current_chat_id:
@@ -115,40 +120,53 @@ if st.session_state.current_chat_id:
         with st.chat_message(role):
             st.markdown(content)
 
-# Հարցի ստացում
-if prompt := st.chat_input("Գրիր քո հարցը այստեղ..."):
-    # Եթե նոր չատ է, ստեղծում ենք բազայում
+prompt = st.chat_input("Գրիր քո հարցը այստեղ...")
+
+# Եթե կա ձայնագրություն կամ գրված տեքստ
+if audio_bytes or prompt:
+    user_input = prompt if prompt else "🎙️ [Ձայնային հաղորդագրություն]"
+
     if st.session_state.current_chat_id is None:
-        cursor.execute(
-            "INSERT INTO chats (title) VALUES (?)", (prompt,)
-        )
+        cursor.execute("INSERT INTO chats (title) VALUES (?)", (user_input,))
         conn.commit()
         st.session_state.current_chat_id = cursor.lastrowid
 
-    # Պահպանում ենք հարցը
     cursor.execute(
         "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-        (st.session_state.current_chat_id, "user", prompt),
+        (st.session_state.current_chat_id, "user", user_input),
     )
     conn.commit()
 
     with st.chat_message("user"):
-        st.markdown(prompt)
+        st.markdown(user_input)
 
-    # Պատասխանի ստացում
     with st.chat_message("assistant"):
         with st.spinner("Հովհաննեսը մտածում է..."):
+            inputs = []
+            if audio_bytes:
+                audio_data = {"mime_type": "audio/wav", "data": audio_bytes}
+                inputs.append(audio_data)
+            if prompt:
+                inputs.append(prompt)
             if image:
-                response = model.generate_content([prompt, image])
-            else:
-                response = model.generate_content(prompt)
+                inputs.append(image)
 
+            response = model.generate_content(inputs)
             st.markdown(response.text)
 
-            # Պահպանում ենք պատասխանը
+            # Պահպանում ենք տեքստը
             cursor.execute(
                 "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
                 (st.session_state.current_chat_id, "assistant", response.text),
             )
             conn.commit()
+
+            # Ձայնային պատասխան ստեղծելու հատված (Text-to-Speech)
+            try:
+                tts = gTTS(text=response.text, lang='hy')
+                tts.save("response.mp3")
+                st.audio("response.mp3", format="audio/mp3", autoplay=True)
+            except Exception as e:
+                pass
+
             st.rerun()
