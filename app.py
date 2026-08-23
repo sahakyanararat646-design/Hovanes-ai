@@ -4,6 +4,8 @@ from PIL import Image
 import streamlit as st
 from audio_recorder_streamlit import audio_recorder
 from gtts import gTTS
+import speech_recognition as sr
+import io
 
 st.set_page_config(
     page_title="Հովհաննես AI", page_icon="🤖", layout="wide"
@@ -121,33 +123,39 @@ if st.session_state.current_chat_id:
 
 prompt = st.chat_input("Գրիր քո հարցը այստեղ...")
 
-# Ստուգում ենք, թե արդյոք կա տեքստ կամ ձայն
-has_audio = audio_bytes is not None and len(audio_bytes) > 0
-if prompt or has_audio:
-    user_input = prompt if prompt else "🎙️ [Ձայնային հաղորդագրություն]"
+# Ձայնից տեքստ ճանաչում
+transcription = None
+if audio_bytes and len(audio_bytes) > 0:
+    recognizer = sr.Recognizer()
+    try:
+        audio_file = io.BytesIO(audio_bytes)
+        with sr.AudioFile(audio_file) as source:
+            audio_data = recognizer.record(source)
+            transcription = recognizer.recognize_google(audio_data, language="hy-AM")
+    except Exception:
+        transcription = None
 
+# Վերջնական text input
+final_user_text = prompt if prompt else transcription
+
+if final_user_text:
     if st.session_state.current_chat_id is None:
-        cursor.execute("INSERT INTO chats (title) VALUES (?)", (user_input,))
+        cursor.execute("INSERT INTO chats (title) VALUES (?)", (final_user_text,))
         conn.commit()
         st.session_state.current_chat_id = cursor.lastrowid
 
     cursor.execute(
         "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-        (st.session_state.current_chat_id, "user", user_input),
+        (st.session_state.current_chat_id, "user", final_user_text),
     )
     conn.commit()
 
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(final_user_text)
 
     with st.chat_message("assistant"):
         with st.spinner("Հովհաննեսը մտածում է..."):
-            inputs = []
-            if has_audio:
-                inputs.append({"mime_type": "audio/wav", "data": audio_bytes})
-                inputs.append("Լսիր այս ձայնագրությունը և պատասխանիր դրան:")
-            if prompt:
-                inputs.append(prompt)
+            inputs = [final_user_text]
             if image:
                 inputs.append(image)
 
@@ -162,7 +170,7 @@ if prompt or has_audio:
                 )
                 conn.commit()
 
-                # Ձայնային պատասխան ստեղծելու հատված (Text-to-Speech)
+                # Ձայնային պատասխան (Text-to-Speech)
                 try:
                     tts = gTTS(text=response.text, lang='hy')
                     tts.save("response.mp3")
@@ -171,6 +179,6 @@ if prompt or has_audio:
                     pass
 
             except Exception as e:
-                st.error(f"Խնդիր առաջացավ հաղորդագրությունը մշակելիս։ Խնդրում ենք կրկնել։")
+                st.error("Սխալ առաջացավ պատասխանը ստանալիս։")
 
             st.rerun()
