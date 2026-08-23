@@ -2,3 +2,4 @@ streamlit
 google-generativeai
 Pillow
 audio-recorder-streamlit
+gTTS
