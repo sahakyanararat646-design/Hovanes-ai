@@ -2,10 +2,7 @@ import sqlite3
 import google.generativeai as genai
 from PIL import Image
 import streamlit as st
-from audio_recorder_streamlit import audio_recorder
 from gtts import gTTS
-import speech_recognition as sr
-import io
 
 st.set_page_config(
     page_title="Հովհաննես AI", page_icon="🤖", layout="wide"
@@ -38,7 +35,7 @@ conn.commit()
 # --- API KEY & MODEL ---
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
-    st.error("API Key-ը գտնված չէ Secrets-ում:")
+    st.error("❌ API Key-ը գտնված չէ Secrets-ում։ Խնդրում ենք ավելացնել GEMINI_API_KEY-ը Streamlit Settings-ում:")
     st.stop()
 
 genai.configure(api_key=api_key)
@@ -106,10 +103,6 @@ if uploaded_file is not None:
     image = Image.open(uploaded_file)
     st.image(image, caption="Բեռնված նկարը", use_column_width=True)
 
-# Ձայնագրության կոճակ
-st.write("🎙️ **Խոսիր Հովհաննեսի հետ (սեղմիր mikrofon-ի վրա)**")
-audio_bytes = audio_recorder(text="", recording_color="#e84c3d", neutral_color="#6aa84f")
-
 # Ցույց տալ ընտրված չատի հաղորդագրությունները
 if st.session_state.current_chat_id:
     cursor.execute(
@@ -123,62 +116,48 @@ if st.session_state.current_chat_id:
 
 prompt = st.chat_input("Գրիր քո հարցը այստեղ...")
 
-# Ձայնից տեքստ ճանաչում
-transcription = None
-if audio_bytes and len(audio_bytes) > 0:
-    recognizer = sr.Recognizer()
-    try:
-        audio_file = io.BytesIO(audio_bytes)
-        with sr.AudioFile(audio_file) as source:
-            audio_data = recognizer.record(source)
-            transcription = recognizer.recognize_google(audio_data, language="hy-AM")
-    except Exception:
-        transcription = None
-
-# Վերջնական text input
-final_user_text = prompt if prompt else transcription
-
-if final_user_text:
+if prompt:
     if st.session_state.current_chat_id is None:
-        cursor.execute("INSERT INTO chats (title) VALUES (?)", (final_user_text,))
+        cursor.execute("INSERT INTO chats (title) VALUES (?)", (prompt,))
         conn.commit()
         st.session_state.current_chat_id = cursor.lastrowid
 
     cursor.execute(
         "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-        (st.session_state.current_chat_id, "user", final_user_text),
+        (st.session_state.current_chat_id, "user", prompt),
     )
     conn.commit()
 
     with st.chat_message("user"):
-        st.markdown(final_user_text)
+        st.markdown(prompt)
 
     with st.chat_message("assistant"):
         with st.spinner("Հովհաննեսը մտածում է..."):
-            inputs = [final_user_text]
+            inputs = [prompt]
             if image:
                 inputs.append(image)
 
             try:
                 response = model.generate_content(inputs)
-                st.markdown(response.text)
+                
+                if response and response.text:
+                    st.markdown(response.text)
 
-                # Պահպանում ենք տեքստը բազայում
-                cursor.execute(
-                    "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-                    (st.session_state.current_chat_id, "assistant", response.text),
-                )
-                conn.commit()
+                    cursor.execute(
+                        "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
+                        (st.session_state.current_chat_id, "assistant", response.text),
+                    )
+                    conn.commit()
 
-                # Ձայնային պատասխան (Text-to-Speech)
-                try:
-                    tts = gTTS(text=response.text, lang='hy')
-                    tts.save("response.mp3")
-                    st.audio("response.mp3", format="audio/mp3", autoplay=True)
-                except Exception:
-                    pass
+                    # Պատասխանը ձայնով կարդալ
+                    try:
+                        tts = gTTS(text=response.text, lang='hy')
+                        tts.save("response.mp3")
+                        st.audio("response.mp3", format="audio/mp3", autoplay=True)
+                    except Exception:
+                        pass
+                else:
+                    st.error("Պատասխան չստացվեց։ Խնդրում ենք կրկնել։")
 
-            except Exception as e:
-                st.error("Սխալ առաջացավ պատասխանը ստանալիս։")
-
-            st.rerun()
+            except Exception as err:
+                st.error(f"⚠️ Սխալ: {err}")
