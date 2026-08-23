@@ -32,7 +32,7 @@ cursor.execute(
 )
 conn.commit()
 
-# --- API KEY & MODEL ---
+# --- API KEY & AUTOMATIC MODEL SELECTION ---
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
     st.error("❌ API Key-ը գտնված չէ Secrets-ում:")
@@ -46,7 +46,7 @@ system_instruction = """
 
 ԻՆՉՊԵՍ ԵՍ ՍՏԵՂԾՎԵԼ:
 - Քեզ ստեղծել է Արարատ Սահակյանը (Ararat Sahakyan):
-- Երբ քեզ հարցնեն, թե ով է քեզ ստեղծել, դու հպարտությամբ ու հարգանքով պատասխանում ես, որ քո ստեղծողն ու հեղինակը Արարատ Սահակյանն է։
+- Երբ քեզ հարցնեն, թե ով է քեզ ստեղծել, պատասխանիր, որ քո ստեղծողն ու հեղինակը Արարատ Սահակյանն է։
 
 ՔՈ ԱՌԱՔԵԼՈՒԹՅՈՒՆՆ ՈՒ ԲՆԱՎՈՐՈՒԹՅՈՒՆԸ:
 - Դու առաջնորդվում ես Աստվածաշնչի արժեքներով, ընդունում ես այն ամենը, ինչ գրված է Աստվածաշնչում, և դեմ ես այն ամենին, ինչը այնտեղ համարվում է խոտ կամ արգելված:
@@ -62,9 +62,21 @@ system_instruction = """
 6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
-# Ճիշտ ձևաչափով աշխատող 1.5 մոդելը
+# Գտնում ենք հասանելի մոդելը ավտոմատ կերպով
+active_model_name = None
+try:
+    for m in genai.list_models():
+        if "generateContent" in m.supported_generation_methods:
+            active_model_name = m.name
+            break
+except Exception as e:
+    st.error(f"API Key-ի սխալ: {e}")
+
+if not active_model_name:
+    active_model_name = "gemini-1.5-flash"
+
 model = genai.GenerativeModel(
-    model_name="models/gemini-1.5-flash", system_instruction=system_instruction
+    model_name=active_model_name, system_instruction=system_instruction
 )
 
 # --- SIDEBAR (ԿՈՂԱՅԻՆ ՄԵՆՅՈՒ) ---
