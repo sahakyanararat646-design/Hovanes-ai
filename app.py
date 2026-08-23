@@ -64,9 +64,9 @@ system_instruction = """
 6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
-# Թարմացված մոդել
+# Ստանդարտ աշխատող մոդել
 model = genai.GenerativeModel(
-    model_name="gemini-2.5-flash", system_instruction=system_instruction
+    model_name="gemini-1.5-flash", system_instruction=system_instruction
 )
 
 # --- SIDEBAR (ԿՈՂԱՅԻՆ ՄԵՆՅՈՒ) ---
@@ -145,12 +145,15 @@ if audio_bytes or prompt:
         with st.spinner("Հովհաննեսը մտածում է..."):
             inputs = []
             if audio_bytes:
-                audio_data = {"mime_type": "audio/wav", "data": audio_bytes}
-                inputs.append(audio_data)
+                inputs.append({"mime_type": "audio/wav", "data": audio_bytes})
             if prompt:
                 inputs.append(prompt)
             if image:
                 inputs.append(image)
+
+            # Եթե դատարկ է, ավելացնում ենք լռելյայն տեքստ
+            if not inputs:
+                inputs = ["Բարև"]
 
             response = model.generate_content(inputs)
             st.markdown(response.text)
@@ -167,7 +170,7 @@ if audio_bytes or prompt:
                 tts = gTTS(text=response.text, lang='hy')
                 tts.save("response.mp3")
                 st.audio("response.mp3", format="audio/mp3", autoplay=True)
-            except Exception as e:
+            except Exception:
                 pass
 
             st.rerun()
