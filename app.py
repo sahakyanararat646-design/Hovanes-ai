@@ -35,7 +35,7 @@ conn.commit()
 # --- API KEY & MODEL ---
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
-    st.error("❌ API Key-ը գտնված չէ Secrets-ում։ Խնդրում ենք ավելացնել GEMINI_API_KEY-ը Streamlit Settings-ում:")
+    st.error("❌ API Key-ը գտնված չէ Secrets-ում:")
     st.stop()
 
 genai.configure(api_key=api_key)
@@ -62,9 +62,9 @@ system_instruction = """
 6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
-# Մոդելի անունը փոխված է 3.6-ի
+# Ճիշտ ձևաչափով աշխատող 1.5 մոդելը
 model = genai.GenerativeModel(
-    model_name="gemini-3.6-flash", system_instruction=system_instruction
+    model_name="models/gemini-1.5-flash", system_instruction=system_instruction
 )
 
 # --- SIDEBAR (ԿՈՂԱՅԻՆ ՄԵՆՅՈՒ) ---
@@ -150,7 +150,6 @@ if prompt:
                     )
                     conn.commit()
 
-                    # Պատասխանը ձայնով կարդալ
                     try:
                         tts = gTTS(text=response.text, lang='hy')
                         tts.save("response.mp3")
@@ -158,7 +157,7 @@ if prompt:
                     except Exception:
                         pass
                 else:
-                    st.error("Պատասխան չստացվեց։ Խնդրում ենք կրկնել։")
+                    st.error("Պատասխան չստացվեց։")
 
             except Exception as err:
                 st.error(f"⚠️ Սխալ: {err}")
