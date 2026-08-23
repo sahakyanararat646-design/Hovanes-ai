@@ -32,7 +32,7 @@ cursor.execute(
 )
 conn.commit()
 
-# --- API KEY & AUTOMATIC MODEL SELECTION ---
+# --- API KEY & MODEL ---
 api_key = st.secrets.get("GEMINI_API_KEY")
 if not api_key:
     st.error("❌ API Key-ը գտնված չէ Secrets-ում:")
@@ -62,21 +62,9 @@ system_instruction = """
 6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
-# Գտնում ենք հասանելի մոդելը ավտոմատ կերպով
-active_model_name = None
-try:
-    for m in genai.list_models():
-        if "generateContent" in m.supported_generation_methods:
-            active_model_name = m.name
-            break
-except Exception as e:
-    st.error(f"API Key-ի սխալ: {e}")
-
-if not active_model_name:
-    active_model_name = "gemini-1.5-flash"
-
+# Պահանջվող models/gemini-3.6-flash անվանումով
 model = genai.GenerativeModel(
-    model_name=active_model_name, system_instruction=system_instruction
+    model_name="models/gemini-3.6-flash", system_instruction=system_instruction
 )
 
 # --- SIDEBAR (ԿՈՂԱՅԻՆ ՄԵՆՅՈՒ) ---
