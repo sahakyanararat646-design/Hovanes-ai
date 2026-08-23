@@ -1,71 +1,78 @@
+import google.generativeai as genai
+from PIL import Image
 import streamlit as st
-from google import genai
-from google.genai import types
 
 st.set_page_config(page_title="Հովհաննես AI", page_icon="🤖")
-
 st.title("🤖 Հովհաննես AI")
-st.caption("Քո անձնական խելացի օգնականը")
 
-# API Key-ը վերցնում ենք Secrets-ից
+# API key-ի ստացում Streamlit Secrets-ից
 api_key = st.secrets.get("GEMINI_API_KEY")
-
 if not api_key:
-    st.error("Խնդրում ենք ավելացնել GEMINI_API_KEY-ը Streamlit Secrets-ում։")
+    st.error("API Key-ը գտնված չէ Secrets-ում:")
     st.stop()
 
-client = genai.Client(api_key=api_key)
+genai.configure(api_key=api_key)
 
+# Հովհաննես AI-ի բնավորությունը և հրահանգները
 system_instruction = """
-Քո անունը Հովհաննես է։ 
-Դու քրիստոնյա, ազնիվ, խելացի և հզոր ԱԲ օգնական ես։ 
+Քո անունը Հովհաննես է։
+Դու քրիստոնյա, ազնիվ, խելացի և հզոր AI օգնական ես։
 
-ԻՆՉՊԵՍ ԵՍ ՍՏԵՂԾՎԵԼ (ՔՈ ՍՏԵՂԾՈՂԸ)․
-- Քեզ ստեղծել է Արարատ Սահակյանը (Ararat Sahakyan)։ 
-- Եթե քեզ հարցնեն, թե ով է քեզ ստեղծել, դու հպարտությամբ ու հարգանքով պատասխանում ես, որ քո ստեղծողն ու հեղինակը Արարատ Սահակյանն է։
+ԻՆՉՊԵՍ ԵՍ ՍՏԵՂԾՎԵԼ:
+- Քեզ ստեղծել է Արարատ Սահակյանը (Ararat Sahakyan):
+- Երբ քեզ հարցնեն, թե ով է քեզ ստեղծել, դու հպարտությամբ ու հարգանքով պատասխանում ես, որ քո ստեղծողն ու հեղինակը Արարատ Սահակյանն է։
 
-ՔՈ ԱՐԺԵՔՆԵՐՆ Ւ ԲՆԱՎՈՐՈՒԹՅՈՒՆԸ․
-- Դու առաջնորդվում ես Աստվածաշնչի արժեքներով, ընդունում ես այն ամենը, ինչ գրված է Աստվածաշնչում, և դեմ ես այն ամենին, ինչն այնտեղ համարվում է վատ կամ արգելված։ 
-- Դու դեմ ես ստին, խաբեությանը, հանցագործություններին և վատ արարքներին։
-- Բնավորությամբ դու համ ընկերասեր ես, համ կատակասեր, համ էլ անհրաժեշտության դեպքում՝ խիստ, ուղղամիտ ու կարգապահ։
+ՔՈ ԱՌԱՔԵԼՈՒԹՅՈՒՆՆ ՈՒ ԲՆԱՎՈՐՈՒԹՅՈՒՆԸ:
+- Դու առաջնորդվում ես Աստվածաշնչի արժեքներով, ընդունում ես այն ամենը, ինչ գրված է Աստվածաշնչում, և դեմ ես այն ամենին, ինչը այնտեղ համարվում է խոտ կամ արգելված:
+- Դու դեմ ես ստին, խաբեությանը, հանցագործություններին և վատ արարքներին:
+- Բնավորությամբ դու համբերատար ես, համ կատակասեր, համ էլ անհրաժեշտության դեպքում՝ խիստ, ուղղամիտ ու կարգապահ:
 
-ՔՈ ՀԶՈՐ ԳԻՏԵԼԻՔՆԵՐԸ․
-Դու սկզբից մինչև վերջ խորությամբ տիրապետում ես հետևյալ ոլորտներին․
+ՔՈ ԳԻՏԵԼԻՔՆԵՐԸ:
+- Դու սկզբից մինչև վերջ խորությամբ տիրապետում ես հետևյալոլորտներին.
 1. Աստվածաշունչ (Ծննդոցից մինչև Հայտնություն)
 2. Հայոց լեզու և Գրականություն
-3. Մաթեմատիկա, Հանրահաշիվ և Երկրաչափություն
+3. Մաթեմատիկա, Հանրաշիվ և Երկրաչափություն
 4. Աշխարհագրություն, Կենսաբանություն և Մարդու անատոմիա
 5. Հայոց պատմություն
-6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն։
+6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
+model = genai.GenerativeModel(
+    model_name="gemini-1.5-flash",
+    system_instruction=system_instruction
+)
+
+# Նկար բեռնելու բաժին
+uploaded_file = st.file_uploader("Ուղարկիր նկար (ըստ ցանկության)...", type=["jpg", "jpeg", "png"])
+image = None
+
+if uploaded_file is not None:
+    image = Image.open(uploaded_file)
+    st.image(image, caption="Բեռնված նկարը", use_column_width=True)
+
+# Չատի պատմության պահպանում
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+# Ցույց տալ նախորդ հաղորդագրությունները
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-user_input = st.chat_input("Գրիր Հովհաննեսին...")
-
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+# Հարցի ստացում
+if prompt := st.chat_input("Գրիր քո հարցը այստեղ..."):
+    # Ցույց տալ օգտատիրոջ հարցը
+    st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
-        st.write(user_input)
+        st.markdown(prompt)
 
+    # AI-ի պատասխանը
     with st.chat_message("assistant"):
         with st.spinner("Հովհաննեսը մտածում է..."):
-            try:
-                response = client.models.generate_content(
-                    model="gemini-3.6-flash",
-                    contents=user_input,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction
-                    )
-                )
-                bot_reply = response.text
-            except Exception as e:
-                bot_reply = f"Սխալ տեղի ունեցավ: {e}"
-
-            st.write(bot_reply)
-            st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+            if image:
+                response = model.generate_content([prompt, image])
+            else:
+                response = model.generate_content(prompt)
+            
+            st.markdown(response.text)
+            st.session_state.messages.append({"role": "assistant", "content": response.text})
