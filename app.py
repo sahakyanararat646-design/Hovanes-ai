@@ -4,7 +4,6 @@ from PIL import Image
 import streamlit as st
 from audio_recorder_streamlit import audio_recorder
 from gtts import gTTS
-import os
 
 st.set_page_config(
     page_title="Հովհաննես AI", page_icon="🤖", layout="wide"
@@ -64,7 +63,6 @@ system_instruction = """
 6. Լեզուներ՝ ազատ խոսում ես Հայերեն, Ռուսերեն և Անգլերեն:
 """
 
-# Ստանդարտ աշխատող մոդել
 model = genai.GenerativeModel(
     model_name="gemini-1.5-flash", system_instruction=system_instruction
 )
@@ -123,8 +121,9 @@ if st.session_state.current_chat_id:
 
 prompt = st.chat_input("Գրիր քո հարցը այստեղ...")
 
-# Եթե կա ձայնագրություն կամ գրված տեքստ
-if audio_bytes or prompt:
+# Ստուգում ենք, թե արդյոք կա տեքստ կամ ձայն
+has_audio = audio_bytes is not None and len(audio_bytes) > 0
+if prompt or has_audio:
     user_input = prompt if prompt else "🎙️ [Ձայնային հաղորդագրություն]"
 
     if st.session_state.current_chat_id is None:
@@ -144,33 +143,34 @@ if audio_bytes or prompt:
     with st.chat_message("assistant"):
         with st.spinner("Հովհաննեսը մտածում է..."):
             inputs = []
-            if audio_bytes:
+            if has_audio:
                 inputs.append({"mime_type": "audio/wav", "data": audio_bytes})
+                inputs.append("Լսիր այս ձայնագրությունը և պատասխանիր դրան:")
             if prompt:
                 inputs.append(prompt)
             if image:
                 inputs.append(image)
 
-            # Եթե դատարկ է, ավելացնում ենք լռելյայն տեքստ
-            if not inputs:
-                inputs = ["Բարև"]
-
-            response = model.generate_content(inputs)
-            st.markdown(response.text)
-
-            # Պահպանում ենք տեքստը
-            cursor.execute(
-                "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
-                (st.session_state.current_chat_id, "assistant", response.text),
-            )
-            conn.commit()
-
-            # Ձայնային պատասխան ստեղծելու հատված (Text-to-Speech)
             try:
-                tts = gTTS(text=response.text, lang='hy')
-                tts.save("response.mp3")
-                st.audio("response.mp3", format="audio/mp3", autoplay=True)
-            except Exception:
-                pass
+                response = model.generate_content(inputs)
+                st.markdown(response.text)
+
+                # Պահպանում ենք տեքստը բազայում
+                cursor.execute(
+                    "INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)",
+                    (st.session_state.current_chat_id, "assistant", response.text),
+                )
+                conn.commit()
+
+                # Ձայնային պատասխան ստեղծելու հատված (Text-to-Speech)
+                try:
+                    tts = gTTS(text=response.text, lang='hy')
+                    tts.save("response.mp3")
+                    st.audio("response.mp3", format="audio/mp3", autoplay=True)
+                except Exception:
+                    pass
+
+            except Exception as e:
+                st.error(f"Խնդիր առաջացավ հաղորդագրությունը մշակելիս։ Խնդրում ենք կրկնել։")
 
             st.rerun()
